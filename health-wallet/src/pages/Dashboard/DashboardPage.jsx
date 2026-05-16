@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useUser } from '@clerk/clerk-react';
 import { mockVitals, mockReports } from '../../utils/mockData';
 import { VITAL_RANGES, getVitalStatus, getVitalStatusColor } from '../../utils/vitalRanges';
 import { getGreeting, getTodayFormatted, formatDate, timeAgo } from '../../utils/formatters';
@@ -19,23 +19,22 @@ const VITALS_DISPLAY = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const navigate = useNavigate();
   const recentReports = [...mockReports].sort((a, b) => new Date(b.report_date) - new Date(a.report_date)).slice(0, 5);
 
   return (
     <div className="dashboard page-enter">
-      {/* Greeting */}
-      <div className="dashboard-header">
-        <div>
-          <h1 className="dashboard-greeting">{getGreeting()}, {user?.name?.split(' ')[0] || 'User'}</h1>
-          <p className="dashboard-date">Your health at a glance · {getTodayFormatted()}</p>
+      <header className="dashboard-header">
+        <div className="header-content">
+          <h1>Good afternoon, {user?.fullName?.split(' ')[0]}</h1>
+          <p>Your health at a glance · {formatDate(new Date())}</p>
         </div>
         <div className="dashboard-actions">
           <button className="btn btn-primary" onClick={() => navigate('/reports/upload')}><FiUpload /> Upload Report</button>
           <button className="btn btn-secondary" onClick={() => navigate('/vitals')}><FiPlus /> Log Vitals</button>
         </div>
-      </div>
+      </header>
 
       {/* Vitals Summary Cards */}
       <div className="vitals-grid">

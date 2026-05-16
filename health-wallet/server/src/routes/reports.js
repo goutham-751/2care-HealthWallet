@@ -2,20 +2,16 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db/db');
-const { authenticate } = require('../middleware/authenticate');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
-
-// All routes require authentication
-router.use(authenticate);
 
 // GET /api/reports — List user's reports
 router.get('/', (req, res) => {
   try {
     const { type, date_from, date_to, search, sort = 'newest' } = req.query;
     let query = 'SELECT * FROM reports WHERE user_id = ?';
-    const params = [req.user.id];
+    const params = [req.auth.userId];
 
     if (type) { query += ' AND report_type = ?'; params.push(type); }
     if (date_from) { query += ' AND report_date >= ?'; params.push(date_from); }
@@ -37,7 +33,7 @@ router.get('/', (req, res) => {
     const result = reports.map(r => ({
       ...r,
       vitals: getVitals.all(r.id),
-      shared_with: getShares.all(r.id, req.user.id)
+      shared_with: getShares.all(r.id, req.auth.userId)
     }));
 
     res.json(result);
@@ -65,7 +61,7 @@ router.post('/', upload.single('file'), (req, res) => {
 
     const result = db.prepare(
       'INSERT INTO reports (user_id, title, report_type, report_date, file_path, file_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.user.id, title, report_type, report_date, filePath, fileType, notes || null);
+    ).run(req.auth.userId, title, report_type, report_date, filePath, fileType, notes || null);
 
     // Insert associated vitals
     if (vitals) {
@@ -94,8 +90,8 @@ router.get('/:id', (req, res) => {
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     // Check access: owner or shared
-    if (report.user_id !== req.user.id) {
-      const share = db.prepare('SELECT id FROM report_shares WHERE report_id = ? AND shared_with_id = ?').get(report.id, req.user.id);
+    if (report.user_id !== req.auth.userId) {
+      const share = db.prepare('SELECT id FROM report_shares WHERE report_id = ? AND shared_with_id = ?').get(report.id, req.auth.userId);
       if (!share) return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -116,7 +112,7 @@ router.get('/:id', (req, res) => {
 // PUT /api/reports/:id — Update metadata
 router.put('/:id', (req, res) => {
   try {
-    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(req.params.id, req.auth.userId);
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     const { title, report_type, report_date, notes } = req.body;
@@ -134,7 +130,7 @@ router.put('/:id', (req, res) => {
 // DELETE /api/reports/:id
 router.delete('/:id', (req, res) => {
   try {
-    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(req.params.id, req.auth.userId);
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     // Delete file
@@ -156,8 +152,8 @@ router.get('/:id/file', (req, res) => {
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     // Check access
-    if (report.user_id !== req.user.id) {
-      const share = db.prepare('SELECT can_download FROM report_shares WHERE report_id = ? AND shared_with_id = ?').get(report.id, req.user.id);
+    if (report.user_id !== req.auth.userId) {
+      const share = db.prepare('SELECT can_download FROM report_shares WHERE report_id = ? AND shared_with_id = ?').get(report.id, req.auth.userId);
       if (!share) return res.status(403).json({ error: 'Access denied' });
       if (!share.can_download) return res.status(403).json({ error: 'Download not permitted' });
     }

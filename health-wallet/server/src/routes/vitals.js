@@ -1,16 +1,14 @@
 const express = require('express');
 const db = require('../db/db');
-const { authenticate } = require('../middleware/authenticate');
 
 const router = express.Router();
-router.use(authenticate);
 
 // GET /api/vitals — Get vitals with filters
 router.get('/', (req, res) => {
   try {
     const { type, from, to, range } = req.query;
     let query = 'SELECT * FROM vitals WHERE user_id = ?';
-    const params = [req.user.id];
+    const params = [req.auth.userId];
 
     if (type) { query += ' AND vital_type = ?'; params.push(type); }
 
@@ -46,7 +44,7 @@ router.post('/', (req, res) => {
 
     const result = db.prepare(
       'INSERT INTO vitals (user_id, vital_type, value, unit, recorded_at, note) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(req.user.id, vital_type, value, unit, recorded_at || new Date().toISOString(), note || null);
+    ).run(req.auth.userId, vital_type, value, unit, recorded_at || new Date().toISOString(), note || null);
 
     const vital = db.prepare('SELECT * FROM vitals WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(vital);
@@ -59,7 +57,7 @@ router.post('/', (req, res) => {
 // DELETE /api/vitals/:id
 router.delete('/:id', (req, res) => {
   try {
-    const vital = db.prepare('SELECT * FROM vitals WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const vital = db.prepare('SELECT * FROM vitals WHERE id = ? AND user_id = ?').get(req.params.id, req.auth.userId);
     if (!vital) return res.status(404).json({ error: 'Vital not found' });
 
     db.prepare('DELETE FROM vitals WHERE id = ?').run(vital.id);

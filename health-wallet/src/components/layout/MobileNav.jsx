@@ -1,12 +1,13 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { FiGrid, FiFileText, FiActivity, FiUsers, FiPlus } from 'react-icons/fi';
+import { NavLink } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
+import { FiHome, FiFileText, FiActivity, FiUsers, FiUser, FiLogOut } from 'react-icons/fi';
 import './MobileNav.css';
 
 export default function MobileNav() {
-  const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const tabs = [
-    { to: '/dashboard', icon: <FiGrid />, label: 'Dashboard' },
+    { to: '/dashboard', icon: <FiHome />, label: 'Dashboard' },
     { to: '/reports', icon: <FiFileText />, label: 'Reports' },
     { to: '/vitals', icon: <FiActivity />, label: 'Vitals' },
     { to: '/shared', icon: <FiUsers />, label: 'Shared' },
@@ -22,8 +23,14 @@ export default function MobileNav() {
           </NavLink>
         ))}
 
-        <button className="mobile-nav-fab" onClick={() => navigate('/reports/upload')}>
-          <FiPlus />
+        <NavLink to="/profile" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+          <FiUser className="mobile-nav-icon" />
+          <span>Profile</span>
+        </NavLink>
+
+        <button className="mobile-nav-item mobile-logout" onClick={() => signOut()}>
+          <FiLogOut className="mobile-nav-icon" />
+          <span>Logout</span>
         </button>
 
         {tabs.slice(2).map(tab => (

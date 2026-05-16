@@ -1,9 +1,7 @@
 const express = require('express');
 const db = require('../db/db');
-const { authenticate } = require('../middleware/authenticate');
 
 const router = express.Router();
-router.use(authenticate);
 
 // POST /api/shares — Share a report with a user by email
 router.post('/', (req, res) => {
@@ -15,14 +13,14 @@ router.post('/', (req, res) => {
     }
 
     // Verify ownership
-    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(report_id, req.user.id);
+    const report = db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?').get(report_id, req.auth.userId);
     if (!report) return res.status(404).json({ error: 'Report not found or not yours' });
 
     // Find target user
     const targetUser = db.prepare('SELECT id, name, email FROM users WHERE email = ?').get(email);
     if (!targetUser) return res.status(404).json({ error: 'User not found with that email' });
 
-    if (targetUser.id === req.user.id) {
+    if (targetUser.id === req.auth.userId) {
       return res.status(400).json({ error: 'Cannot share with yourself' });
     }
 
@@ -32,7 +30,7 @@ router.post('/', (req, res) => {
 
     const result = db.prepare(
       'INSERT INTO report_shares (report_id, owner_id, shared_with_id, can_download) VALUES (?, ?, ?, ?)'
-    ).run(report_id, req.user.id, targetUser.id, can_download ? 1 : 0);
+    ).run(report_id, req.auth.userId, targetUser.id, can_download ? 1 : 0);
 
     const share = db.prepare('SELECT * FROM report_shares WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ ...share, shared_with: targetUser });
@@ -52,7 +50,7 @@ router.get('/mine', (req, res) => {
       JOIN users u ON rs.shared_with_id = u.id
       WHERE rs.owner_id = ?
       ORDER BY rs.shared_at DESC
-    `).all(req.user.id);
+    `).all(req.auth.userId);
 
     res.json(shares);
   } catch (err) {
@@ -71,7 +69,7 @@ router.get('/with-me', (req, res) => {
       JOIN users u ON rs.owner_id = u.id
       WHERE rs.shared_with_id = ?
       ORDER BY rs.shared_at DESC
-    `).all(req.user.id);
+    `).all(req.auth.userId);
 
     res.json(shared);
   } catch (err) {
@@ -83,7 +81,7 @@ router.get('/with-me', (req, res) => {
 // DELETE /api/shares/:id — Revoke share
 router.delete('/:id', (req, res) => {
   try {
-    const share = db.prepare('SELECT * FROM report_shares WHERE id = ? AND owner_id = ?').get(req.params.id, req.user.id);
+    const share = db.prepare('SELECT * FROM report_shares WHERE id = ? AND owner_id = ?').get(req.params.id, req.auth.userId);
     if (!share) return res.status(404).json({ error: 'Share not found' });
 
     db.prepare('DELETE FROM report_shares WHERE id = ?').run(share.id);

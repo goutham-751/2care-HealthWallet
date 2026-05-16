@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@clerk/clerk-react';
 import { FiShield, FiBarChart2, FiShare2, FiUpload, FiHeart, FiLock, FiArrowRight, FiCheckCircle } from 'react-icons/fi';
 import './LandingPage.css';
 
@@ -23,7 +23,7 @@ const features = [
   { icon: <FiUpload />, title: 'Upload & Organize', desc: 'Store blood tests, X-rays, MRIs, prescriptions — all in one secure vault.' },
   { icon: <FiBarChart2 />, title: 'Track Vitals', desc: 'Log BP, blood sugar, heart rate, SpO2. Visualize trends with interactive charts.' },
   { icon: <FiShare2 />, title: 'Share Securely', desc: 'Share reports with your doctor or family. Grant and revoke access anytime.' },
-  { icon: <FiShield />, title: 'Bank-Grade Security', desc: 'JWT authentication, encrypted storage, role-based access control.' },
+  { icon: <FiShield />, title: 'Bank-Grade Security', desc: 'Clerk authentication, encrypted storage, role-based access control.' },
 ];
 
 const stats = [
@@ -41,9 +41,9 @@ const testimonials = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isSignedIn } = useAuth();
 
-  if (isAuthenticated) {
+  if (isSignedIn) {
     navigate('/dashboard');
     return null;
   }

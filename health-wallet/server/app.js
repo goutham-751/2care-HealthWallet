@@ -5,7 +5,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 
-const authRoutes = require('./src/routes/auth');
+const { clerkMiddleware, requireAuth } = require('@clerk/express');
+const db = require('./src/db/db');
+
 const reportRoutes = require('./src/routes/reports');
 const vitalRoutes = require('./src/routes/vitals');
 const shareRoutes = require('./src/routes/shares');
@@ -23,11 +25,30 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Clerk Middleware
+app.use(clerkMiddleware());
+
+// Auto-sync User Middleware
+const syncUser = (req, res, next) => {
+  if (req.auth && req.auth.userId) {
+    try {
+      // Lazy insert user if they don't exist yet
+      db.prepare('INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)').run(
+        req.auth.userId,
+        req.auth.claims?.email_addresses?.[0] || 'unknown@clerk.com', // fallback
+        'User' // Clerk frontend doesn't necessarily pass name in JWT claims by default, handle in webhooks if needed
+      );
+    } catch (err) {
+      console.error('Error syncing user:', err);
+    }
+  }
+  next();
+};
+
 // API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/vitals', vitalRoutes);
-app.use('/api/shares', shareRoutes);
+app.use('/api/reports', requireAuth(), syncUser, reportRoutes);
+app.use('/api/vitals', requireAuth(), syncUser, vitalRoutes);
+app.use('/api/shares', requireAuth(), syncUser, shareRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
