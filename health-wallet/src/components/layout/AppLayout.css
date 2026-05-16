@@ -1,0 +1,26 @@
+.app-layout {
+  min-height: 100vh;
+}
+
+.app-main {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.app-content {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .app-main {
+    margin-left: 0;
+    padding-bottom: calc(var(--mobile-nav-height) + 16px);
+  }
+
+  .app-content {
+    padding: 20px 16px;
+  }
+}

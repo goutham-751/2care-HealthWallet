@@ -1,0 +1,13 @@
+.shared-banner { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--color-primary-subtle); color: var(--color-primary); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 500; margin-bottom: 24px; border: 1px solid rgba(27,79,114,0.15); }
+.shared-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.shared-card { padding: 20px; cursor: pointer; }
+.shared-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.shared-card-from { font-size: var(--text-xs); color: var(--color-text-muted); }
+.shared-card h4 { margin-bottom: 6px; }
+.shared-card-notes { font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: 12px; }
+.shared-card-meta { font-size: var(--text-xs); color: var(--color-text-muted); display: flex; gap: 16px; margin-bottom: 14px; }
+.shared-card-actions { display: flex; gap: 8px; }
+
+@media (max-width: 768px) {
+  .shared-grid { grid-template-columns: 1fr; }
+}
