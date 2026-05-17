@@ -8,6 +8,14 @@ const router = express.Router();
 
 const getUserId = (req) => req.getUserId?.() || null;
 
+function toFilterList(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 // GET /api/reports — List user's reports
 router.get('/', (req, res) => {
   try {
@@ -16,12 +24,27 @@ router.get('/', (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const { type, date_from, date_to, search, sort = 'newest' } = req.query;
+    const { type, vital_type, date_from, date_to, search, sort = 'newest' } = req.query;
+    const reportTypes = toFilterList(type);
+    const vitalTypes = toFilterList(vital_type);
     
-    let query = 'SELECT * FROM reports WHERE user_id = ?';
+    let query = 'SELECT reports.* FROM reports WHERE reports.user_id = ?';
     const params = [userId];
 
-    if (type) { query += ' AND report_type = ?'; params.push(type); }
+    if (reportTypes.length > 0) {
+      query += ` AND reports.report_type IN (${reportTypes.map(() => '?').join(', ')})`;
+      params.push(...reportTypes);
+    }
+
+    if (vitalTypes.length > 0) {
+      query += ` AND EXISTS (
+        SELECT 1 FROM report_vitals rv
+        WHERE rv.report_id = reports.id
+          AND rv.vital_type IN (${vitalTypes.map(() => '?').join(', ')})
+      )`;
+      params.push(...vitalTypes);
+    }
+
     if (date_from) { query += ' AND report_date >= ?'; params.push(date_from); }
     if (date_to) { query += ' AND report_date <= ?'; params.push(date_to); }
     if (search) { query += ' AND (title LIKE ? OR notes LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }

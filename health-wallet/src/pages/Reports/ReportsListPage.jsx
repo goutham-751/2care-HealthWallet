@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getReportsAPI } from '../../api/reports';
-import { REPORT_TYPES, REPORT_TYPE_BADGE } from '../../utils/constants';
+import { REPORT_TYPES, REPORT_TYPE_BADGE, VITAL_TYPES } from '../../utils/constants';
 import { formatDate } from '../../utils/formatters';
 import { FiSearch, FiFilter, FiX, FiFileText, FiImage, FiShare2 } from 'react-icons/fi';
 import './ReportsPage.css';
@@ -12,13 +12,19 @@ export default function ReportsListPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState([]);
+  const [vitalFilter, setVitalFilter] = useState([]);
   const [sortOrder, setSortOrder] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     async function loadReports() {
+      setLoading(true);
       try {
-        const data = await getReportsAPI();
+        const data = await getReportsAPI({
+          type: typeFilter.join(',') || undefined,
+          vital_type: vitalFilter.join(',') || undefined,
+          sort: sortOrder,
+        });
         setReports(data);
       } catch (err) {
         console.error('Failed to load reports', err);
@@ -27,17 +33,22 @@ export default function ReportsListPage() {
       }
     }
     loadReports();
-  }, []);
+  }, [typeFilter, vitalFilter, sortOrder]);
 
   const toggleType = (t) => setTypeFilter(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const toggleVital = (t) => setVitalFilter(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const resetFilters = () => {
+    setSearch('');
+    setTypeFilter([]);
+    setVitalFilter([]);
+  };
 
   const filtered = useMemo(() => {
     let r = [...reports];
     if (search) r = r.filter(x => x.title.toLowerCase().includes(search.toLowerCase()) || x.notes?.toLowerCase().includes(search.toLowerCase()));
-    if (typeFilter.length > 0) r = r.filter(x => typeFilter.includes(x.report_type));
     r.sort((a, b) => sortOrder === 'newest' ? new Date(b.report_date) - new Date(a.report_date) : new Date(a.report_date) - new Date(b.report_date));
     return r;
-  }, [reports, search, typeFilter, sortOrder]);
+  }, [reports, search, sortOrder]);
 
   if (loading) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh'}}><div className="spinner spinner-lg"></div></div>;
 
@@ -73,8 +84,19 @@ export default function ReportsListPage() {
               ))}
             </div>
           </div>
-          {(search || typeFilter.length > 0) && (
-            <button className="btn btn-ghost btn-sm btn-full" onClick={() => { setSearch(''); setTypeFilter([]); }}>Reset Filters</button>
+          <div className="filter-section">
+            <label>Associated Vitals</label>
+            <div className="filter-checks">
+              {VITAL_TYPES.map(v => (
+                <label key={v.key} className="filter-check">
+                  <input type="checkbox" checked={vitalFilter.includes(v.key)} onChange={() => toggleVital(v.key)} />
+                  <span>{v.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {(search || typeFilter.length > 0 || vitalFilter.length > 0) && (
+            <button className="btn btn-ghost btn-sm btn-full" onClick={resetFilters}>Reset Filters</button>
           )}
         </aside>
 
