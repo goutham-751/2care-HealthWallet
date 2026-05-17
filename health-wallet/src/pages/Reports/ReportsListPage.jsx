@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockReports } from '../../utils/mockData';
+import { getReportsAPI } from '../../api/reports';
 import { REPORT_TYPES, REPORT_TYPE_BADGE } from '../../utils/constants';
 import { formatDate } from '../../utils/formatters';
 import { FiSearch, FiFilter, FiX, FiFileText, FiImage, FiShare2 } from 'react-icons/fi';
@@ -8,20 +8,38 @@ import './ReportsPage.css';
 
 export default function ReportsListPage() {
   const navigate = useNavigate();
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState([]);
   const [sortOrder, setSortOrder] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
 
+  useEffect(() => {
+    async function loadReports() {
+      try {
+        const data = await getReportsAPI();
+        setReports(data);
+      } catch (err) {
+        console.error('Failed to load reports', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadReports();
+  }, []);
+
   const toggleType = (t) => setTypeFilter(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const filtered = useMemo(() => {
-    let r = [...mockReports];
+    let r = [...reports];
     if (search) r = r.filter(x => x.title.toLowerCase().includes(search.toLowerCase()) || x.notes?.toLowerCase().includes(search.toLowerCase()));
     if (typeFilter.length > 0) r = r.filter(x => typeFilter.includes(x.report_type));
     r.sort((a, b) => sortOrder === 'newest' ? new Date(b.report_date) - new Date(a.report_date) : new Date(a.report_date) - new Date(b.report_date));
     return r;
-  }, [search, typeFilter, sortOrder]);
+  }, [reports, search, typeFilter, sortOrder]);
+
+  if (loading) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh'}}><div className="spinner spinner-lg"></div></div>;
 
   return (
     <div className="reports-page page-enter">
@@ -63,7 +81,7 @@ export default function ReportsListPage() {
         {/* Main Content */}
         <div className="reports-main">
           <div className="reports-toolbar">
-            <span className="reports-count">Showing {filtered.length} of {mockReports.length} reports</span>
+            <span className="reports-count">Showing {filtered.length} of {reports.length} reports</span>
             <div className="reports-toolbar-right">
               <select className="input" value={sortOrder} onChange={e => setSortOrder(e.target.value)} style={{width:'auto',padding:'6px 32px 6px 12px'}}>
                 <option value="newest">Newest first</option>
@@ -74,7 +92,7 @@ export default function ReportsListPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="empty-state card"><div className="empty-state-icon">🔍</div><h3>No reports found</h3><p>Try adjusting your filters</p></div>
+            <div className="empty-state card"><div className="empty-state-icon">🔍</div><h3>No reports found</h3><p>Try adjusting your filters or upload a new one</p></div>
           ) : (
             <div className="reports-grid">
               {filtered.map(r => (

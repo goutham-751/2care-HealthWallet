@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockReports } from '../../utils/mockData';
+import { getReportAPI, downloadReportFileAPI, deleteReportAPI } from '../../api/reports';
 import { formatDate, timeAgo } from '../../utils/formatters';
 import { REPORT_TYPE_BADGE } from '../../utils/constants';
 import { getVitalStatus } from '../../utils/vitalRanges';
@@ -10,10 +10,56 @@ import './ReportsPage.css';
 export default function ReportDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const report = mockReports.find(r => r.id === Number(id));
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [canDownload, setCanDownload] = useState(false);
+
+  useEffect(() => {
+    async function fetchReport() {
+      try {
+        const data = await getReportAPI(id);
+        setReport(data);
+      } catch (err) {
+        console.error('Failed to load report', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchReport();
+  }, [id]);
+
+  const handleDownload = async () => {
+    try {
+      const blob = await downloadReportFileAPI(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = report.file_name || `report-${id}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed', err);
+      alert('Failed to download file');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this report?')) {
+      try {
+        await deleteReportAPI(id);
+        navigate('/reports');
+      } catch (err) {
+        console.error('Failed to delete', err);
+        alert('Failed to delete report');
+      }
+    }
+  };
+
+  if (loading) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh'}}><div className="spinner spinner-lg"></div></div>;
 
   if (!report) {
     return (
@@ -36,7 +82,7 @@ export default function ReportDetailPage() {
             <div className="report-viewer-icon">{report.file_type === 'pdf' ? '📄' : '🖼️'}</div>
             <h3>{report.title}</h3>
             <p>{report.file_type === 'pdf' ? 'PDF Document' : 'Image File'}</p>
-            <button className="btn btn-primary mt-md"><FiDownload /> Download File</button>
+            <button className="btn btn-primary mt-md" onClick={handleDownload}><FiDownload /> Download File</button>
           </div>
         </div>
         <aside className="report-detail-sidebar">
@@ -77,8 +123,8 @@ export default function ReportDetailPage() {
               <div className="report-shares-list">
                 {report.shared_with.map(s => (
                   <div key={s.id} className="report-share-row">
-                    <div className="report-share-avatar">{s.name.charAt(0)}</div>
-                    <div className="report-share-info"><span className="report-share-name">{s.name}</span><span className="report-share-email">{s.email}</span></div>
+                    <div className="report-share-avatar">{s.shared_with_email.charAt(0).toUpperCase()}</div>
+                    <div className="report-share-info"><span className="report-share-name">{s.shared_with_email}</span><span className="report-share-email">{s.can_download ? 'Can Download' : 'View Only'}</span></div>
                     <button className="btn btn-ghost btn-sm" style={{color:'var(--color-danger)'}}>Revoke</button>
                   </div>
                 ))}
@@ -86,7 +132,7 @@ export default function ReportDetailPage() {
             ) : <p className="text-muted" style={{fontSize:'var(--text-sm)'}}>Not shared with anyone yet.</p>}
           </div>
 
-          <button className="btn btn-danger btn-full mt-md"><FiTrash2 /> Delete Report</button>
+          <button className="btn btn-danger btn-full mt-md" onClick={handleDelete}><FiTrash2 /> Delete Report</button>
         </aside>
       </div>
 

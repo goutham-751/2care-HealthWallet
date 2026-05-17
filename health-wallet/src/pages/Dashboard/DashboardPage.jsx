@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { mockVitals, mockReports } from '../../utils/mockData';
-import { VITAL_RANGES, getVitalStatus, getVitalStatusColor } from '../../utils/vitalRanges';
-import { getGreeting, getTodayFormatted, formatDate, timeAgo } from '../../utils/formatters';
+import { VITAL_RANGES, getVitalStatus } from '../../utils/vitalRanges';
+import { formatDate, timeAgo } from '../../utils/formatters';
 import { REPORT_TYPE_BADGE } from '../../utils/constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { FiUpload, FiPlus, FiArrowRight, FiFileText, FiImage, FiTrendingDown, FiTrendingUp, FiMinus } from 'react-icons/fi';
+import { FiUpload, FiPlus, FiArrowRight, FiFileText, FiImage, FiTrendingDown, FiTrendingUp, FiMinus, FiHeart } from 'react-icons/fi';
+import { getReportsAPI } from '../../api/reports';
+import { getVitalsAPI } from '../../api/vitals';
 import './DashboardPage.css';
 
 const VITALS_DISPLAY = [
@@ -18,10 +19,56 @@ const VITALS_DISPLAY = [
   { key: 'weight', label: 'Weight' },
 ];
 
+function FiActivityIcon({ size = 24, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>;
+}
+
+function FiDropletIcon({ size = 24, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>;
+}
+
 export default function DashboardPage() {
   const { user } = useUser();
   const navigate = useNavigate();
-  const recentReports = [...mockReports].sort((a, b) => new Date(b.report_date) - new Date(a.report_date)).slice(0, 5);
+  const [reports, setReports] = useState([]);
+  const [vitalsData, setVitalsData] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [repRes, vitRes] = await Promise.all([
+          getReportsAPI({ limit: 5 }),
+          getVitalsAPI()
+        ]);
+        
+        setReports(repRes);
+        
+        // Group vitals by type
+        const grouped = {};
+        vitRes.forEach(v => {
+          if (!grouped[v.vital_type]) grouped[v.vital_type] = [];
+          grouped[v.vital_type].push(v);
+        });
+        
+        // Sort each array chronologically
+        Object.keys(grouped).forEach(k => {
+          grouped[k].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+        });
+        
+        setVitalsData(grouped);
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const recentReports = reports.slice(0, 5);
+
+  if (loading) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh'}}><div className="spinner spinner-lg"></div></div>;
 
   return (
     <div className="dashboard page-enter">
@@ -39,12 +86,12 @@ export default function DashboardPage() {
       {/* Vitals Summary Cards */}
       <div className="vitals-grid">
         {VITALS_DISPLAY.map(v => {
-          const data = mockVitals[v.key];
+          const data = vitalsData[v.key];
           if (!data || data.length === 0) return null;
           const latest = data[data.length - 1];
-          const prev = data.length > 7 ? data[data.length - 8] : data[0];
+          const prev = data.length > 1 ? data[data.length - 2] : data[0];
           const delta = Math.round((latest.value - prev.value) * 10) / 10;
-          const range = VITAL_RANGES[v.key];
+          const range = VITAL_RANGES[v.key] || { color: '#000', icon: <FiActivityIcon />, unit: '' };
           const status = getVitalStatus(v.key, latest.value);
 
           return (
@@ -54,11 +101,11 @@ export default function DashboardPage() {
                 <span className={`status-dot status-dot-${status}`}></span>
               </div>
               <div className="vital-card-value font-mono">{latest.value}</div>
-              <div className="vital-card-unit">{range.unit}</div>
+              <div className="vital-card-unit">{latest.unit || range.unit}</div>
               <div className="vital-card-label">{v.label}</div>
               <div className={`vital-card-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}`}>
                 {delta > 0 ? <FiTrendingUp /> : delta < 0 ? <FiTrendingDown /> : <FiMinus />}
-                <span>{delta > 0 ? '+' : ''}{delta} from last week</span>
+                <span>{delta > 0 ? '+' : ''}{delta} from last log</span>
               </div>
             </div>
           );
@@ -93,13 +140,16 @@ export default function DashboardPage() {
         </div>
 
         <div className="dashboard-chart card">
-          <h3>Blood Pressure — Last 30 Days</h3>
+          <h3>Blood Pressure Trend</h3>
           <div className="dashboard-chart-container">
+            {(!vitalsData.bp_systolic || vitalsData.bp_systolic.length === 0) ? (
+               <div className="empty-state" style={{height:'100%',justifyContent:'center'}}><p>Log your BP to see trends</p></div>
+            ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={mockVitals.bp_systolic.map((v, i) => ({
-                date: v.recorded_at.slice(5),
+              <AreaChart data={vitalsData.bp_systolic.map((v, i) => ({
+                date: v.recorded_at.slice(5, 10), // MM-DD
                 systolic: v.value,
-                diastolic: mockVitals.bp_diastolic[i]?.value
+                diastolic: vitalsData.bp_diastolic && vitalsData.bp_diastolic[i] ? vitalsData.bp_diastolic[i].value : null
               }))}>
                 <defs>
                   <linearGradient id="bpGrad" x1="0" y1="0" x2="0" y2="1">
@@ -109,13 +159,14 @@ export default function DashboardPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F4F8" />
                 <XAxis dataKey="date" tick={{fontSize:11, fill:'#718096'}} />
-                <YAxis domain={[60, 160]} tick={{fontSize:11, fill:'#718096'}} />
+                <YAxis domain={['auto', 'auto']} tick={{fontSize:11, fill:'#718096'}} />
                 <Tooltip contentStyle={{borderRadius:'8px', border:'1px solid #E2E8F0', boxShadow:'0 4px 16px rgba(0,0,0,0.08)'}} />
                 <ReferenceLine y={120} stroke="#E74C3C" strokeDasharray="4 4" />
                 <Area type="monotone" dataKey="systolic" stroke="#9B59B6" fill="url(#bpGrad)" strokeWidth={2} name="Systolic" />
                 <Area type="monotone" dataKey="diastolic" stroke="#8E44AD" fill="none" strokeDasharray="5 5" strokeWidth={1.5} name="Diastolic" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

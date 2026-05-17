@@ -9,12 +9,15 @@ api.interceptors.request.use(async (config) => {
   if (window.Clerk && window.Clerk.session) {
     try {
       const token = await window.Clerk.session.getToken();
+      console.log('Clerk Token found:', !!token);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (err) {
       console.error('Error fetching Clerk token', err);
     }
+  } else {
+    console.log('Clerk or session NOT found on window');
   }
   return config;
 });

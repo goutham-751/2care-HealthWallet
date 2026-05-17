@@ -11,9 +11,7 @@ export async function getReportAPI(id) {
 }
 
 export async function uploadReportAPI(formData) {
-  const res = await api.post('/reports', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
+  const res = await api.post('/reports', formData);
   return res.data;
 }
 

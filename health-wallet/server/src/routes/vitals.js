@@ -1,14 +1,23 @@
 const express = require('express');
 const db = require('../db/db');
+const { getAuth } = require('@clerk/express');
 
 const router = express.Router();
+
+// Helper to get robust userId
+const getUserId = (req) => {
+  const auth = (typeof req.auth === 'function') ? req.auth() : (req.auth || getAuth(req));
+  return auth?.userId || auth?.claims?.sub;
+};
 
 // GET /api/vitals — Get vitals with filters
 router.get('/', (req, res) => {
   try {
     const { type, from, to, range } = req.query;
+    const userId = getUserId(req);
+    
     let query = 'SELECT * FROM vitals WHERE user_id = ?';
-    const params = [req.auth.userId];
+    const params = [userId];
 
     if (type) { query += ' AND vital_type = ?'; params.push(type); }
 
@@ -37,6 +46,7 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { vital_type, value, unit, recorded_at, note } = req.body;
+    const userId = getUserId(req);
 
     if (!vital_type || value === undefined || !unit) {
       return res.status(400).json({ error: 'vital_type, value, and unit are required' });
@@ -44,7 +54,7 @@ router.post('/', (req, res) => {
 
     const result = db.prepare(
       'INSERT INTO vitals (user_id, vital_type, value, unit, recorded_at, note) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(req.auth.userId, vital_type, value, unit, recorded_at || new Date().toISOString(), note || null);
+    ).run(userId, vital_type, value, unit, recorded_at || new Date().toISOString(), note || null);
 
     const vital = db.prepare('SELECT * FROM vitals WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(vital);
@@ -57,7 +67,8 @@ router.post('/', (req, res) => {
 // DELETE /api/vitals/:id
 router.delete('/:id', (req, res) => {
   try {
-    const vital = db.prepare('SELECT * FROM vitals WHERE id = ? AND user_id = ?').get(req.params.id, req.auth.userId);
+    const userId = getUserId(req);
+    const vital = db.prepare('SELECT * FROM vitals WHERE id = ? AND user_id = ?').get(req.params.id, userId);
     if (!vital) return res.status(404).json({ error: 'Vital not found' });
 
     db.prepare('DELETE FROM vitals WHERE id = ?').run(vital.id);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { REPORT_TYPES, VITAL_TYPES } from '../../utils/constants';
+import { uploadReportAPI } from '../../api/reports';
 import { FiUploadCloud, FiX, FiPlus, FiCheck, FiArrowLeft, FiArrowRight, FiFile } from 'react-icons/fi';
 import './ReportsPage.css';
 
@@ -22,9 +23,28 @@ export default function UploadReportPage() {
 
   const handleUpload = async () => {
     setUploading(true);
-    await new Promise(r => setTimeout(r, 1500));
-    setUploading(false);
-    navigate('/reports');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title);
+      formData.append('report_type', reportType);
+      formData.append('report_date', reportDate);
+      formData.append('notes', notes);
+      
+      const validVitals = vitals.filter(v => v.type && v.value);
+      if (validVitals.length > 0) {
+        formData.append('vitals', JSON.stringify(validVitals));
+      }
+
+      await uploadReportAPI(formData);
+      navigate('/reports');
+    } catch (err) {
+      console.error('Failed to upload', err);
+      const msg = err.response?.data?.error || err.message || 'Failed to upload report';
+      alert(`Upload Failed: ${msg}`);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const steps = [
