@@ -5,8 +5,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 
-const { clerkMiddleware, getAuth } = require('@clerk/express');
+const { clerkMiddleware } = require('@clerk/express');
 const db = require('./src/db/db');
+const { resolveAuth, getUserId } = require('./src/utils/auth');
 
 const reportRoutes = require('./src/routes/reports');
 const vitalRoutes = require('./src/routes/vitals');
@@ -42,35 +43,10 @@ app.use((req, res, next) => {
 // Initialize Clerk (sets up req.auth)
 app.use(clerkMiddleware());
 
-// Helper to get userId from any Clerk version
-function getUserId(req) {
-  try {
-    // Try getAuth first (recommended approach)
-    const auth = getAuth(req);
-    if (auth && auth.userId) return auth.userId;
-    if (auth && auth.claims && auth.claims.sub) return auth.claims.sub;
-  } catch (e) { /* fall through */ }
-  
-  try {
-    // Try req.auth as function (some Clerk versions)
-    if (typeof req.auth === 'function') {
-      const auth = req.auth();
-      if (auth && auth.userId) return auth.userId;
-      if (auth && auth.claims && auth.claims.sub) return auth.claims.sub;
-    }
-    // Try req.auth as object
-    if (req.auth && typeof req.auth === 'object') {
-      if (req.auth.userId) return req.auth.userId;
-      if (req.auth.claims && req.auth.claims.sub) return req.auth.claims.sub;
-    }
-  } catch (e) { /* fall through */ }
-  
-  return null;
-}
-
 // Make getUserId available to route files
 app.use((req, res, next) => {
   req.getUserId = () => getUserId(req);
+  req.getAuthContext = () => resolveAuth(req);
   next();
 });
 
@@ -83,12 +59,19 @@ function requireAuthentication(req, res, next) {
   
   // Sync user to DB
   try {
-    const auth = getAuth(req);
-    const email = auth?.sessionClaims?.email || auth?.claims?.email || `${userId}@clerk.com`;
-    const name = auth?.sessionClaims?.name || auth?.claims?.name || 'User';
-    db.prepare('INSERT OR REPLACE INTO users (id, email, name) VALUES (?, ?, ?)').run(userId, email, name);
+    const auth = resolveAuth(req);
+    const email = auth.email || `${userId}@clerk.local`;
+    const name = auth.name || 'User';
+    db.prepare(`
+      INSERT INTO users (id, email, name)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        email = excluded.email,
+        name = excluded.name
+    `).run(userId, email, name);
   } catch (err) {
-    // Non-fatal — user may already exist
+    console.error('[AUTH] Failed to sync user:', err.message);
+    return res.status(500).json({ error: 'Failed to sync authenticated user' });
   }
   
   next();
@@ -119,7 +102,7 @@ app.use('/api/vitals', requireAuthentication, vitalRoutes);
 app.use('/api/shares', requireAuthentication, shareRoutes);
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
   console.error('[ERROR]', err.message || err);
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
@@ -134,8 +117,8 @@ const server = app.listen(PORT, () => {
 // Keep process alive
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Trying ${PORT + 1}...`);
-    server.listen(PORT + 1);
+    console.error(`Port ${PORT} is already in use. Stop the existing server before restarting.`);
+    process.exit(1);
   } else {
     console.error('[CRITICAL] Server error:', err);
   }

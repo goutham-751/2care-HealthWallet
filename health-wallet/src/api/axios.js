@@ -4,21 +4,26 @@ const api = axios.create({
   baseURL: 'http://localhost:5000/api',
 });
 
+let authTokenGetter = null;
+
+export function setAuthTokenGetter(getter) {
+  authTokenGetter = getter;
+}
+
 // Request interceptor: attach Clerk JWT
 api.interceptors.request.use(async (config) => {
-  if (window.Clerk && window.Clerk.session) {
-    try {
-      const token = await window.Clerk.session.getToken();
-      console.log('Clerk Token found:', !!token);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (err) {
-      console.error('Error fetching Clerk token', err);
+  try {
+    const token = authTokenGetter
+      ? await authTokenGetter()
+      : await window.Clerk?.session?.getToken();
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-  } else {
-    console.log('Clerk or session NOT found on window');
+  } catch (err) {
+    console.error('Error fetching Clerk token', err);
   }
+
   return config;
 });
 

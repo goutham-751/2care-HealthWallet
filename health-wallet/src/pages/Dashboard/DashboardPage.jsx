@@ -5,7 +5,7 @@ import { VITAL_RANGES, getVitalStatus } from '../../utils/vitalRanges';
 import { formatDate, timeAgo } from '../../utils/formatters';
 import { REPORT_TYPE_BADGE } from '../../utils/constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { FiUpload, FiPlus, FiArrowRight, FiFileText, FiImage, FiTrendingDown, FiTrendingUp, FiMinus, FiHeart } from 'react-icons/fi';
+import { FiUpload, FiPlus, FiArrowRight, FiFileText, FiImage, FiTrendingDown, FiTrendingUp, FiMinus } from 'react-icons/fi';
 import { getReportsAPI } from '../../api/reports';
 import { getVitalsAPI } from '../../api/vitals';
 import './DashboardPage.css';
@@ -21,10 +21,6 @@ const VITALS_DISPLAY = [
 
 function FiActivityIcon({ size = 24, color = 'currentColor' }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>;
-}
-
-function FiDropletIcon({ size = 24, color = 'currentColor' }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>;
 }
 
 export default function DashboardPage() {

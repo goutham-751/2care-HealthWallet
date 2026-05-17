@@ -1,14 +1,9 @@
 const express = require('express');
 const db = require('../db/db');
-const { getAuth } = require('@clerk/express');
 
 const router = express.Router();
 
-// Helper to get robust userId
-const getUserId = (req) => {
-  const auth = (typeof req.auth === 'function') ? req.auth() : (req.auth || getAuth(req));
-  return auth?.userId || auth?.claims?.sub;
-};
+const getUserId = (req) => req.getUserId?.() || null;
 
 // GET /api/vitals — Get vitals with filters
 router.get('/', (req, res) => {

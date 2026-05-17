@@ -3,21 +3,19 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db/db');
 const upload = require('../middleware/upload');
-const { getAuth } = require('@clerk/express');
 
 const router = express.Router();
 
-// Helper to get robust userId
-const getUserId = (req) => {
-  const auth = (typeof req.auth === 'function') ? req.auth() : (req.auth || getAuth(req));
-  return auth?.userId || auth?.claims?.sub;
-};
+const getUserId = (req) => req.getUserId?.() || null;
 
 // GET /api/reports — List user's reports
 router.get('/', (req, res) => {
   try {
     const userId = getUserId(req);
     console.log('[DEBUG] Querying reports for userId:', userId);
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     const { type, date_from, date_to, search, sort = 'newest' } = req.query;
     
     let query = 'SELECT * FROM reports WHERE user_id = ?';
